@@ -249,48 +249,77 @@ void SPH::computeForces()
     }
 }
 
-void SPH::moveParticles( float deltaTime )
-{
-    #pragma omp parallel for schedule( guided )
-    for ( int i=0 ; i<_particles.size() ; ++i )
-    {
+void SPH::moveParticles(float deltaTime) {
+    const float epsilon = std::numeric_limits<float>::epsilon(); // XXX
+
+    #pragma omp parallel for schedule(guided)
+    for (int i = 0; i < _particles.size(); ++i) {
+        Particle& particle = _particles[i];
 
         // Mettre à jour la vitesse et la position de chaque particule à l'aide de la méthode d'intégration
         // semi-explicite d'Euler, en traitant correctement les intersections avec la paroi (_container).
 
-        // BEGIN TODO //
+        QVector3D currPos = particle.position();
+        QVector3D nextVel = particle.velocity() + deltaTime * particle.acceleration();
+        QVector3D nextPos = currPos + deltaTime * nextVel;
 
-        // ... //
+        QVector3D remMove = nextPos - currPos;
+        QVector3D dirMove = remMove.normalized();
 
-        // END TODO //
+        Intersection inter;
+        while (_container.intersect(Ray(currPos, dirMove), inter) &&
+               remMove.length() > (inter.rayParameterT() * dirMove).length()) {
+            remMove = nextPos - inter.position();
+
+            currPos = inter.position() - epsilon * inter.normal();
+            nextVel -= QVector3D::dotProduct(nextVel, inter.normal()) * inter.normal();
+            nextPos -= (QVector3D::dotProduct(remMove, inter.normal()) + epsilon) * inter.normal();
+
+            dirMove = (nextPos - currPos).normalized();
+        }
+
+        particle.setPosition(nextPos);
+        particle.setVelocity(nextVel);
 
         // Vérifiez si la particule a changé de cellule de la grille régulière (classe Grid). Si c'est le cas
         // changez-la de cellule (méthodes 'removeParticle' et 'addParticle' avant de mettre à jour son index).
 
-        // BEGIN TODO //
+        unsigned int currCell = particle.cellIndex();
+        unsigned int nextCell = _grid.cellIndex(nextPos);
 
-        // ... //
+        if (currCell != nextCell) {
+            particle.setCellIndex(nextCell);
 
-        // END TODO //
-
+            _grid.removeParticle(currCell, unsigned(i));
+            _grid.addParticle(nextCell, unsigned(i));
+        }
     }
-
 }
 
-void SPH::surfaceInfo( const QVector3D& position, float& value, QVector3D& normal )
-{
-    value = 0;
-    normal = QVector3D();
+void SPH::surfaceInfo(const QVector3D& position, float& value, QVector3D& normal) {
+    float density = 0;
+    QVector3D gradient = QVector3D();
 
     // Calculez la valeur de la fonction 'f' ainsi que l'approxmation de la normale à
     // la surface au point 'position'. Cette fonction est appelée par la classe
     // 'MarchingTetrahedra' à chaque sommet de sa grille. Inspirez-vous de la fonction
     // 'computeDensities' pour savoir comment accéder aux particules voisines.
 
-    // BEGIN TODO //
+    auto neighborhood = _grid.neighborhood(_grid.cellIndex(position));
+    for (int i = 0; i < neighborhood.size(); ++i) {
+        auto neighbors = _grid.cellParticles(neighborhood[i]);
+        for (int j = 0; j < neighbors.size(); ++j) {
+            Particle& neighbor = _particles[int(neighbors[j])];
+            QVector3D diffPos = position - neighbor.position();
 
-    // ... //
+            float r2 = diffPos.lengthSquared();
+            if (r2 < _smoothingRadius2) {
+                density += neighbor.mass() * densityKernel(r2); // XXX correction?
+                gradient -= neighbor.mass() * densitykernelGradient(r2) * diffPos;
+            }
+        }
+    }
 
-    // END TODO //
-
+    value = density / _restDensity - (1 - .3f);
+    normal = (2 * gradient / _restDensity).normalized();
 }

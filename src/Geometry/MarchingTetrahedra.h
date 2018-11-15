@@ -43,7 +43,7 @@ private:
     float _cubeSize[3];
 
     // Rendering stuff
-    int _nbGLVertices = 0; // XXX
+    int _nbGLVertices;
     QVector<QVector3D> _glVertices;
     QVector<QVector3D> _glNormals;
 };

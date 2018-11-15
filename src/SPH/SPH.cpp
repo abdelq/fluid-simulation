@@ -250,17 +250,15 @@ void SPH::computeForces()
 }
 
 void SPH::moveParticles(float deltaTime) {
-    const float epsilon = std::numeric_limits<float>::epsilon(); // XXX
+    const float epsilon = 2e-3f; // XXX
+
+    // Mettre à jour la vitesse et la position de chaque particule à l'aide de la méthode d'intégration
+    // semi-explicite d'Euler, en traitant correctement les intersections avec la paroi (_container).
 
     #pragma omp parallel for schedule(guided)
     for (int i = 0; i < _particles.size(); ++i) {
-        Particle& particle = _particles[i];
-
-        // Mettre à jour la vitesse et la position de chaque particule à l'aide de la méthode d'intégration
-        // semi-explicite d'Euler, en traitant correctement les intersections avec la paroi (_container).
-
-        QVector3D currPos = particle.position();
-        QVector3D nextVel = particle.velocity() + deltaTime * particle.acceleration();
+        QVector3D currPos = _particles[i].position();
+        QVector3D nextVel = _particles[i].velocity() + deltaTime * _particles[i].acceleration();
         QVector3D nextPos = currPos + deltaTime * nextVel;
 
         QVector3D remMove = nextPos - currPos;
@@ -278,17 +276,19 @@ void SPH::moveParticles(float deltaTime) {
             dirMove = (nextPos - currPos).normalized();
         }
 
-        particle.setPosition(nextPos);
-        particle.setVelocity(nextVel);
+        _particles[i].setVelocity(nextVel);
+        _particles[i].setPosition(nextPos);
+    }
 
-        // Vérifiez si la particule a changé de cellule de la grille régulière (classe Grid). Si c'est le cas
-        // changez-la de cellule (méthodes 'removeParticle' et 'addParticle' avant de mettre à jour son index).
+    // Vérifiez si la particule a changé de cellule de la grille régulière (classe Grid). Si c'est le cas
+    // changez-la de cellule (méthodes 'removeParticle' et 'addParticle' avant de mettre à jour son index).
 
-        unsigned int currCell = particle.cellIndex();
-        unsigned int nextCell = _grid.cellIndex(nextPos);
+    for (int i = 0; i < _particles.size(); ++i) {
+        unsigned int currCell = _particles[i].cellIndex();
+        unsigned int nextCell = _grid.cellIndex(_particles[i].position());
 
         if (currCell != nextCell) {
-            particle.setCellIndex(nextCell);
+            _particles[i].setCellIndex(nextCell);
 
             _grid.removeParticle(currCell, unsigned(i));
             _grid.addParticle(nextCell, unsigned(i));
@@ -297,25 +297,23 @@ void SPH::moveParticles(float deltaTime) {
 }
 
 void SPH::surfaceInfo(const QVector3D& position, float& value, QVector3D& normal) {
-    float density = 0;
-    QVector3D gradient = QVector3D();
-
-    // Calculez la valeur de la fonction 'f' ainsi que l'approxmation de la normale à
+    // Calculez la valeur de la fonction 'f' ainsi que l'approximation de la normale à
     // la surface au point 'position'. Cette fonction est appelée par la classe
     // 'MarchingTetrahedra' à chaque sommet de sa grille. Inspirez-vous de la fonction
     // 'computeDensities' pour savoir comment accéder aux particules voisines.
 
-    auto neighborhood = _grid.neighborhood(_grid.cellIndex(position));
-    for (int i = 0; i < neighborhood.size(); ++i) {
-        auto neighbors = _grid.cellParticles(neighborhood[i]);
-        for (int j = 0; j < neighbors.size(); ++j) {
-            Particle& neighbor = _particles[int(neighbors[j])];
-            QVector3D diffPos = position - neighbor.position();
+    float density = 0;
+    QVector3D gradient = QVector3D();
+
+    for (unsigned int neighborhood : _grid.neighborhood(_grid.cellIndex(position))) {
+        for (unsigned int neighbor : _grid.cellParticles(neighborhood)) {
+            Particle& particle = _particles[int(neighbor)];
+            QVector3D diffPos = position - particle.position();
 
             float r2 = diffPos.lengthSquared();
             if (r2 < _smoothingRadius2) {
-                density += neighbor.mass() * densityKernel(r2); // XXX correction?
-                gradient -= neighbor.mass() * densitykernelGradient(r2) * diffPos;
+                density += particle.mass() * densityKernel(r2);
+                gradient -= particle.mass() * densitykernelGradient(r2) * diffPos;
             }
         }
     }

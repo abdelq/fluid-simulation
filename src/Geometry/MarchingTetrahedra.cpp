@@ -26,6 +26,8 @@ void MarchingTetrahedra::render(const QMatrix4x4& transformation, GLShader& shad
     // Calculez les valeurs et les normales aux sommets en appelant 'computeVertexInfo' avant de faire le rendu de chaque cube de
     // la grille à l'aide de la fonction 'renderCube'. Une fois fait, appelez 'renderTriangles' pour faire le rendu des triangles.
 
+    _nbGLVertices = 0;
+
     computeVertexInfo(implicitSurface);
 
     for (unsigned int z = 0; z < _nbCubes[2]; ++z)
@@ -52,14 +54,11 @@ void MarchingTetrahedra::computeVertexInfo(ImplicitSurface& implicitSurface) {
     // vertex '_vertexPositions' et de la classe 'implicitSurface'. Notez que les tableaux sont indexés par un seul nombre ... Notez
     // également qu'il y a (_nbCubes[0]+1)x(_nbCubes[1]+1)x(_nbCubes[2]+1) sommets dans la grille.
 
-    for (unsigned int z = 0; z < _nbCubes[2] + 1; ++z) {
-        for (unsigned int y = 0; y < _nbCubes[1] + 1; ++y) {
-            for (unsigned int x = 0; x < _nbCubes[0] + 1; ++x) {
-                int i = vertexIndex(x, y, z);
+    int i = 0; // Indice de sommet
+    for (unsigned int z = 0; z < _nbCubes[2] + 1; ++z)
+        for (unsigned int y = 0; y < _nbCubes[1] + 1; ++y)
+            for (unsigned int x = 0; x < _nbCubes[0] + 1; ++x, ++i)
                 implicitSurface.surfaceInfo(_vertexPositions[i], _vertexValues[i], _vertexNormals[i]);
-            }
-        }
-    }
 }
 
 void MarchingTetrahedra::renderCube(unsigned int x, unsigned int y, unsigned int z) {
@@ -87,26 +86,23 @@ void MarchingTetrahedra::renderTetrahedron(int p1, int p2, int p3, int p4) {
     // En utilisant les valeurs aux sommets, voyez dans quel cas de rendu vous vous trouvez puis faites appel
     // à 'renderTriangle' ou 'renderQuad' dépendant du cas
 
-    /*int a = ((_vertexValues[p1] > 0) << 3) + ((_vertexValues[p2] > 0) << 2) +
-            ((_vertexValues[p3] > 0) << 1) + ((_vertexValues[p4] > 0) << 0);*/
-
     bool isP1Pos = _vertexValues[p1] > 0, isP2Pos = _vertexValues[p2] > 0,
          isP3Pos = _vertexValues[p3] > 0, isP4Pos = _vertexValues[p4] > 0;
 
-    // XXX Simplify (Binary mapping)
-    if ((isP1Pos == isP2Pos) && (isP1Pos != isP3Pos) && (isP1Pos != isP4Pos))
+    // TODO Simplify
+    if (isP1Pos == isP2Pos && isP1Pos != isP3Pos && isP1Pos != isP4Pos)
         renderQuad(p1, p2, p3, p4);
-    else if ((isP1Pos == isP3Pos) && (isP1Pos != isP2Pos) && (isP1Pos != isP4Pos))
+    else if (isP1Pos == isP3Pos && isP1Pos != isP2Pos && isP1Pos != isP4Pos)
         renderQuad(p1, p3, p2, p4);
-    else if ((isP1Pos == isP4Pos) && (isP1Pos != isP2Pos) && (isP1Pos != isP3Pos))
+    else if (isP1Pos == isP4Pos && isP1Pos != isP2Pos && isP1Pos != isP3Pos)
         renderQuad(p1, p4, p2, p3);
-    else if ((isP1Pos != isP2Pos) && (isP1Pos != isP3Pos) && (isP1Pos != isP4Pos))
+    else if (isP1Pos != isP2Pos && isP1Pos != isP3Pos && isP1Pos != isP4Pos)
         renderTriangle(p1, p2, p3, p4);
-    else if ((isP2Pos != isP1Pos) && (isP2Pos != isP3Pos) && (isP2Pos != isP4Pos))
+    else if (isP2Pos != isP1Pos && isP2Pos != isP3Pos && isP2Pos != isP4Pos)
         renderTriangle(p2, p1, p3, p4);
-    else if ((isP3Pos != isP1Pos) && (isP3Pos != isP2Pos) && (isP3Pos != isP4Pos))
+    else if (isP3Pos != isP1Pos && isP3Pos != isP2Pos && isP3Pos != isP4Pos)
         renderTriangle(p3, p1, p2, p4);
-    else if ((isP4Pos != isP1Pos) && (isP4Pos != isP2Pos) && (isP4Pos != isP3Pos))
+    else if (isP4Pos != isP1Pos && isP4Pos != isP2Pos && isP4Pos != isP3Pos)
         renderTriangle(p4, p1, p2, p3);
 }
 
@@ -148,7 +144,6 @@ void MarchingTetrahedra::renderQuad(int in1, int in2, int out3, int out4) {
     QVector3D n2 = interpolate(_vertexNormals[in2], val2, _vertexNormals[out3], val3).normalized();
     QVector3D n3 = interpolate(_vertexNormals[in2], val2, _vertexNormals[out4], val4).normalized();
 
-    // XXX
     addTriangle(p0, p1, p2, n0, n1, n2);
     addTriangle(p1, p2, p3, n1, n2, n3);
 }
@@ -163,9 +158,8 @@ int MarchingTetrahedra::vertexIndex( unsigned int x, unsigned int y, unsigned in
     return z * ( _nbCubes[0] + 1 ) * ( _nbCubes[1] + 1 ) + y * ( _nbCubes[0] + 1 ) + x;
 }
 
-QVector3D MarchingTetrahedra::interpolate(const QVector3D& vec1, float val1, const QVector3D& vec2, float val2)
-{
-    return vec1 + val1 / (val1 - val2) * (vec2 - vec1); // XXX iso
+QVector3D MarchingTetrahedra::interpolate(const QVector3D& vec1, float val1, const QVector3D& vec2, float val2) {
+    return vec1 + (vec2 - vec1) * val1 / (val1 - val2);
 }
 
 void MarchingTetrahedra::addTriangle( const QVector3D& p0, const QVector3D& p1, const QVector3D& p2,

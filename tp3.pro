@@ -46,7 +46,7 @@ OTHER_FILES += \
 DEPENDPATH += \
     shaders
 
-LIBS += -lopengl32
+#LIBS += -lopengl32
 
 CONFIG(debug, debug|release) {
     DESTDIR = ./

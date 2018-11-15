@@ -22,18 +22,18 @@ MarchingTetrahedra::MarchingTetrahedra( const BoundingBox& boundingBox, unsigned
     computeVertexPositions();
 }
 
-void MarchingTetrahedra::render( const QMatrix4x4& transformation, GLShader& shader, ImplicitSurface& implicitSurface )
-{
-
+void MarchingTetrahedra::render(const QMatrix4x4& transformation, GLShader& shader, ImplicitSurface& implicitSurface) {
     // Calculez les valeurs et les normales aux sommets en appelant 'computeVertexInfo' avant de faire le rendu de chaque cube de
     // la grille à l'aide de la fonction 'renderCube'. Une fois fait, appelez 'renderTriangles' pour faire le rendu des triangles.
 
-    // BEGIN TODO //
+    computeVertexInfo(implicitSurface);
 
-    // ... //
+    for (unsigned int z = 0; z < _nbCubes[2]; ++z)
+        for (unsigned int y = 0; y < _nbCubes[1]; ++y)
+            for (unsigned int x = 0; x < _nbCubes[0]; ++x)
+                renderCube(x, y, z);
 
-    // END TODO //
-
+    renderTriangles(transformation, shader);
 }
 
 void MarchingTetrahedra::computeVertexPositions()
@@ -47,78 +47,110 @@ void MarchingTetrahedra::computeVertexPositions()
                 _vertexPositions[currentVertex] = vertexPosition( x, y, z );
 }
 
-void MarchingTetrahedra::computeVertexInfo( ImplicitSurface& implicitSurface )
-{
-
+void MarchingTetrahedra::computeVertexInfo(ImplicitSurface& implicitSurface) {
     // Pour chaque sommet de la grille, remplir les variables membres '_vertexValues' et '_vertexNormals' à l'aide de la position du
     // vertex '_vertexPositions' et de la classe 'implicitSurface'. Notez que les tableaux sont indexés par un seul nombre ... Notez
     // également qu'il y a (_nbCubes[0]+1)x(_nbCubes[1]+1)x(_nbCubes[2]+1) sommets dans la grille.
 
-    // BEGIN TODO //
-
-    // ... //
-
-    // END TODO //
-
+    for (unsigned int z = 0; z < _nbCubes[2] + 1; ++z) {
+        for (unsigned int y = 0; y < _nbCubes[1] + 1; ++y) {
+            for (unsigned int x = 0; x < _nbCubes[0] + 1; ++x) {
+                int i = vertexIndex(x, y, z);
+                implicitSurface.surfaceInfo(_vertexPositions[i], _vertexValues[i], _vertexNormals[i]);
+            }
+        }
+    }
 }
 
-void MarchingTetrahedra::renderCube( unsigned int x, unsigned int y, unsigned int z )
-{
-
+void MarchingTetrahedra::renderCube(unsigned int x, unsigned int y, unsigned int z) {
     // Divisez votre cube en six tétraèdres en utilisant les sommets du cube, et faire appel à 'renderTetrahedron'
     // pour le rendu de chacun d'eux
 
-    // BEGIN TODO //
+    int leftBottomFront  = vertexIndex(x,   y,   z  ),
+        leftBottomRear   = vertexIndex(x,   y,   z+1),
+        leftTopFront     = vertexIndex(x,   y+1, z  ),
+        leftTopRear      = vertexIndex(x,   y+1, z+1),
+        rightBottomFront = vertexIndex(x+1, y,   z  ),
+        rightBottomRear  = vertexIndex(x+1, y,   z+1),
+        rightTopFront    = vertexIndex(x+1, y+1, z  ),
+        rightTopRear     = vertexIndex(x+1, y+1, z+1);
 
-    // ... //
-
-    // END TODO //
-
+    renderTetrahedron(leftBottomFront, leftBottomRear,   leftTopRear,     rightTopRear);
+    renderTetrahedron(leftBottomFront, leftBottomRear,   rightBottomRear, rightTopRear);
+    renderTetrahedron(leftBottomFront, leftTopFront,     leftTopRear,     rightTopRear);
+    renderTetrahedron(leftBottomFront, leftTopFront,     rightTopFront,   rightTopRear);
+    renderTetrahedron(leftBottomFront, rightBottomFront, rightBottomRear, rightTopRear);
+    renderTetrahedron(leftBottomFront, rightBottomFront, rightTopFront,   rightTopRear);
 }
 
-void MarchingTetrahedra::renderTetrahedron( unsigned int p1, unsigned int p2, unsigned int p3, unsigned int p4 )
-{
-
+void MarchingTetrahedra::renderTetrahedron(int p1, int p2, int p3, int p4) {
     // En utilisant les valeurs aux sommets, voyez dans quel cas de rendu vous vous trouvez puis faites appel
     // à 'renderTriangle' ou 'renderQuad' dépendant du cas
 
-    // BEGIN TODO
+    /*int a = ((_vertexValues[p1] > 0) << 3) + ((_vertexValues[p2] > 0) << 2) +
+            ((_vertexValues[p3] > 0) << 1) + ((_vertexValues[p4] > 0) << 0);*/
 
-    // ... //
+    bool isP1Pos = _vertexValues[p1] > 0, isP2Pos = _vertexValues[p2] > 0,
+         isP3Pos = _vertexValues[p3] > 0, isP4Pos = _vertexValues[p4] > 0;
 
-    // END TODO
-
+    // XXX Simplify (Binary mapping)
+    if ((isP1Pos == isP2Pos) && (isP1Pos != isP3Pos) && (isP1Pos != isP4Pos))
+        renderQuad(p1, p2, p3, p4);
+    else if ((isP1Pos == isP3Pos) && (isP1Pos != isP2Pos) && (isP1Pos != isP4Pos))
+        renderQuad(p1, p3, p2, p4);
+    else if ((isP1Pos == isP4Pos) && (isP1Pos != isP2Pos) && (isP1Pos != isP3Pos))
+        renderQuad(p1, p4, p2, p3);
+    else if ((isP1Pos != isP2Pos) && (isP1Pos != isP3Pos) && (isP1Pos != isP4Pos))
+        renderTriangle(p1, p2, p3, p4);
+    else if ((isP2Pos != isP1Pos) && (isP2Pos != isP3Pos) && (isP2Pos != isP4Pos))
+        renderTriangle(p2, p1, p3, p4);
+    else if ((isP3Pos != isP1Pos) && (isP3Pos != isP2Pos) && (isP3Pos != isP4Pos))
+        renderTriangle(p3, p1, p2, p4);
+    else if ((isP4Pos != isP1Pos) && (isP4Pos != isP2Pos) && (isP4Pos != isP3Pos))
+        renderTriangle(p4, p1, p2, p3);
 }
 
-void MarchingTetrahedra::renderTriangle( unsigned int in1, unsigned int out2, unsigned int out3, unsigned int out4 )
-{
-
+void MarchingTetrahedra::renderTriangle(int in1, int out2, int out3, int out4) {
     // Calculez l'interpolation des valeurs et des normales pour les arêtes dont les sommets sont de signes
     // différents. N'oubliez pas de normaliser vos normales. Une fois fait, ajoutez le triangle à la liste des triangles
     // à affichier en utilisant la méthode 'addTriangle'
 
-    // BEGIN TODO
+    float val1 = _vertexValues[in1];
 
-    // ... //
+    QVector3D pos1 = _vertexPositions[in1];
+    QVector3D p0 = interpolate(pos1, val1, _vertexPositions[out2], _vertexValues[out2]);
+    QVector3D p1 = interpolate(pos1, val1, _vertexPositions[out3], _vertexValues[out3]);
+    QVector3D p2 = interpolate(pos1, val1, _vertexPositions[out4], _vertexValues[out4]);
 
-    // END TODO
+    QVector3D nor1 = _vertexNormals[in1];
+    QVector3D n0 = interpolate(nor1, val1, _vertexNormals[out2], _vertexValues[out2]).normalized();
+    QVector3D n1 = interpolate(nor1, val1, _vertexNormals[out3], _vertexValues[out3]).normalized();
+    QVector3D n2 = interpolate(nor1, val1, _vertexNormals[out4], _vertexValues[out4]).normalized();
 
+    addTriangle(p0, p1, p2, n0, n1, n2);
 }
 
-void MarchingTetrahedra::renderQuad( unsigned int in1, unsigned int in2, unsigned int out3, unsigned int out4 )
-{
-
+void MarchingTetrahedra::renderQuad(int in1, int in2, int out3, int out4) {
     // Calculez l'interpolation des valeurs et des normales pour les arêtes dont les sommets sont de signes
     // différents. Vous aurez quatre sommets. Séparez le quadrilatère en deux triangles, puis ajoutez les à
     // la liste des triangles à affichier en utilisant la méthode 'addTriangle'
 
-    // BEGIN TODO
+    float val1 = _vertexValues[in1], val2 = _vertexValues[in2],
+          val3 = _vertexValues[out3], val4 = _vertexValues[out4];
 
-    // ... //
+    QVector3D p0 = interpolate(_vertexPositions[in1], val1, _vertexPositions[out3], val3);
+    QVector3D p1 = interpolate(_vertexPositions[in1], val1, _vertexPositions[out4], val4);
+    QVector3D p2 = interpolate(_vertexPositions[in2], val2, _vertexPositions[out3], val3);
+    QVector3D p3 = interpolate(_vertexPositions[in2], val2, _vertexPositions[out4], val4);
 
-    // END TODO
+    QVector3D n0 = interpolate(_vertexNormals[in1], val1, _vertexNormals[out3], val3).normalized();
+    QVector3D n1 = interpolate(_vertexNormals[in1], val1, _vertexNormals[out4], val4).normalized();
+    QVector3D n2 = interpolate(_vertexNormals[in2], val2, _vertexNormals[out3], val3).normalized();
+    QVector3D n3 = interpolate(_vertexNormals[in2], val2, _vertexNormals[out4], val4).normalized();
 
-
+    // XXX
+    addTriangle(p0, p1, p2, n0, n1, n2);
+    addTriangle(p1, p2, p3, n1, n2, n3);
 }
 
 QVector3D MarchingTetrahedra::vertexPosition( unsigned int x, unsigned int y, unsigned int z ) const
@@ -126,9 +158,14 @@ QVector3D MarchingTetrahedra::vertexPosition( unsigned int x, unsigned int y, un
     return _boundingBox.minimum() + QVector3D( x * _cubeSize[0], y * _cubeSize[1], z * _cubeSize[2] );
 }
 
-unsigned int MarchingTetrahedra::vertexIndex( unsigned int x, unsigned int y, unsigned int z ) const
+int MarchingTetrahedra::vertexIndex( unsigned int x, unsigned int y, unsigned int z ) const
 {
     return z * ( _nbCubes[0] + 1 ) * ( _nbCubes[1] + 1 ) + y * ( _nbCubes[0] + 1 ) + x;
+}
+
+QVector3D MarchingTetrahedra::interpolate(const QVector3D& vec1, float val1, const QVector3D& vec2, float val2)
+{
+    return vec1 + val1 / (val1 - val2) * (vec2 - vec1); // XXX iso
 }
 
 void MarchingTetrahedra::addTriangle( const QVector3D& p0, const QVector3D& p1, const QVector3D& p2,

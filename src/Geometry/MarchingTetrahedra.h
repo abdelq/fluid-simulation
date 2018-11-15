@@ -22,11 +22,12 @@ private:
 
     void computeVertexInfo( ImplicitSurface& implicitSurface );
     void renderCube( unsigned int x, unsigned int y, unsigned int z );
-    void renderTetrahedron( unsigned int p1, unsigned int p2, unsigned int p3, unsigned int p4 );
-    void renderTriangle( unsigned int in1, unsigned int out2, unsigned int out3, unsigned int out4 );
-    void renderQuad( unsigned int in1, unsigned int in2, unsigned int out3, unsigned int out4 );
+    void renderTetrahedron(int p1, int p2, int p3, int p4);
+    void renderTriangle(int in1, int out2, int out3, int out4);
+    void renderQuad(int in1, int in2, int out3, int out4);
     QVector3D vertexPosition( unsigned int x, unsigned int y, unsigned int z ) const;
-    unsigned int vertexIndex( unsigned int x, unsigned int y, unsigned int z ) const;
+    int vertexIndex( unsigned int x, unsigned int y, unsigned int z ) const;
+    QVector3D interpolate(const QVector3D& vec1, float val1, const QVector3D& vec2, float val2);
 
     void addTriangle( const QVector3D& p0, const QVector3D& p1, const QVector3D& p2,
                       const QVector3D& n0, const QVector3D& n1, const QVector3D& n2 );
@@ -42,7 +43,7 @@ private:
     float _cubeSize[3];
 
     // Rendering stuff
-    int _nbGLVertices;
+    int _nbGLVertices = 0; // XXX
     QVector<QVector3D> _glVertices;
     QVector<QVector3D> _glNormals;
 };
